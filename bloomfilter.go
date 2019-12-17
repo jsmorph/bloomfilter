@@ -58,6 +58,34 @@ func (f *Filter) Add(v hash.Hash64) {
 	f.n++
 }
 
+// AddContainsNolock reports whether v was already in the filter.  If
+// it wasn't in the filter, it's added.  This method is NOT safe for
+// concurrent use.
+func (f *Filter) AddContainsNolock(v hash.Hash64) bool {
+	h := f.hash(v)
+	{
+		r := uint64(1)
+		for _, i := range h {
+			// r |= f.getBit(k)
+			i %= f.m
+			r &= (f.bits[i>>6] >> uint(i&0x3f)) & 1
+		}
+		if uint64ToBool(r) {
+			return true
+		}
+	}
+
+	{
+		for _, i := range h {
+			i %= f.m
+			f.bits[i>>6] |= 1 << uint(i&0x3f)
+		}
+		f.n++
+		return false
+	}
+
+}
+
 // Contains tests if f contains v
 // false: f definitely does not contain value v
 // true:  f maybe contains value v
